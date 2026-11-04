@@ -100,6 +100,19 @@ export function stripFields<T extends Record<string, unknown>>(
   return copy;
 }
 
+/** Key-order-independent JSON form: JSONB round-trips do not preserve key order. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
 export function assertUnchanged(
   body: Record<string, unknown>,
   current: Record<string, unknown>,
@@ -108,7 +121,7 @@ export function assertUnchanged(
   for (const field of fields) {
     const next = body[field];
     if (next === undefined) continue;
-    if (JSON.stringify(next) !== JSON.stringify(current[field])) {
+    if (canonicalJson(next) !== canonicalJson(current[field])) {
       throw new HttpError(
         403,
         'REGULATED_FIELD',

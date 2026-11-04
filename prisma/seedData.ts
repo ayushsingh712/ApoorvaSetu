@@ -145,6 +145,7 @@ export async function clearDatabase(prisma: PrismaClient): Promise<void> {
     prisma.systemAlert.deleteMany(),
     prisma.notificationItem.deleteMany(),
     prisma.undertaking.deleteMany(),
+    prisma.documentVerification.deleteMany(),
     prisma.documentItem.deleteMany(),
     prisma.complianceRecord.deleteMany(),
     prisma.eVCVisit.deleteMany(),

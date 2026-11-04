@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Upload,
+  ScanLine,
   Search,
   FileText,
   Download,
@@ -429,11 +431,20 @@ export const Documents: React.FC = () => {
         title="Document repository"
         description="Statutory validity, renewal chains and officer verification for every institutional record."
         actions={
-          canUpload ? (
-            <Button icon={<Upload className="h-4 w-4" />} onClick={openUpload}>
-              Upload document
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/documents/verification"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
+            >
+              <ScanLine className="h-4 w-4" />
+              <span>AI verification</span>
+            </Link>
+            {canUpload ? (
+              <Button icon={<Upload className="h-4 w-4" />} onClick={openUpload}>
+                Upload document
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

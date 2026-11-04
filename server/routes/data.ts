@@ -5,6 +5,7 @@ import type {
   AuditLog,
   ComplianceRecord,
   DocumentItem,
+  DocumentVerificationReport,
   EscalationItem,
   EVCVisit,
   NotificationItem,
@@ -17,6 +18,7 @@ import {
   filterAlertsForUser,
   filterApplicationsForUser,
   filterComplianceForUser,
+  filterDocumentVerificationsForUser,
   filterDocumentsForUser,
   filterEVCVisitsForUser,
   filterInstitutesForUser,
@@ -35,6 +37,7 @@ import {
   parseApplication,
   parseComplianceRecord,
   parseDocumentItem,
+  parseDocumentVerificationReport,
   parseEscalation,
   parseEVCVisit,
   parseNotification,
@@ -62,6 +65,8 @@ import {
   toComplianceRecordData,
   toDocumentItem,
   toDocumentItemData,
+  toDocumentVerification,
+  toDocumentVerificationData,
   toEVCVisit,
   toEVCVisitData,
   toEscalation,
@@ -297,6 +302,121 @@ const documentSpec: SaveSpec<DocumentItem> = {
   }
 };
 
+const VERIFICATION_AUTHOR_ROLES: readonly User['role'][] = [
+  'SUPER_ADMIN',
+  'AICTE_ADMIN',
+  'REGIONAL_OFFICER',
+  'INSTITUTION_ADMIN'
+];
+
+const VERIFICATION_IMMUTABLE_FIELDS = [
+  'applicationId',
+  'documentId',
+  'instituteId',
+  'instituteName',
+  'region',
+  'documentTypeCode',
+  'fileName',
+  'fileType',
+  'fileSize',
+  'fileHash',
+  'storagePath',
+  'extraction',
+  'checklist',
+  'issues',
+  'aiSummary',
+  'disclaimer',
+  'createdAt',
+  'createdBy',
+  'createdByUserId'
+] as const;
+
+const documentVerificationSpec: SaveSpec<DocumentVerificationReport> = {
+  table: 'documentVerifications',
+  label: 'Document verification report',
+  permissions: ['documents.read'],
+  parse: parseDocumentVerificationReport,
+  idOf: (report) => report.id,
+  scopeOf: (report) => ({ region: report.region, instituteId: report.instituteId }),
+  find: async (id) => {
+    const row = await prisma().documentVerification.findUnique({ where: { id } });
+    return row ? toDocumentVerification(row) : null;
+  },
+  guard: (report, existing) => {
+    if (existing.status !== 'Pending Review') {
+      throw new HttpError(
+        403,
+        'REGULATED_FIELD',
+        'A verification report can only be reviewed once.'
+      );
+    }
+    assertUnchanged(
+      report as unknown as Record<string, unknown>,
+      existing as unknown as Record<string, unknown>,
+      VERIFICATION_IMMUTABLE_FIELDS
+    );
+    if (report.status !== 'Pending Review' && !report.decision) {
+      throw new HttpError(400, 'INVALID_BODY', 'A review decision is required.');
+    }
+    if (report.status === 'Pending Review' && report.decision) {
+      throw new HttpError(400, 'INVALID_BODY', 'A pending report cannot carry a decision.');
+    }
+    if (report.decision && report.decision.outcome !== report.status) {
+      throw new HttpError(400, 'INVALID_BODY', 'The decision must match the report status.');
+    }
+    if (report.status === 'Rejected' && !report.decision?.note.trim()) {
+      throw new HttpError(400, 'INVALID_BODY', 'A rejection note is required.');
+    }
+  },
+  create: async (report, user) => {
+    if (!VERIFICATION_AUTHOR_ROLES.includes(user.role)) {
+      throw new HttpError(
+        403,
+        'FORBIDDEN',
+        'This role cannot run a document verification.'
+      );
+    }
+    const stamped = {
+      ...report,
+      status: 'Pending Review' as const,
+      decision: undefined,
+      createdBy: user.name,
+      createdByUserId: user.id
+    };
+    await prisma().documentVerification.create({ data: toDocumentVerificationData(stamped) });
+    return stamped;
+  },
+  update: async (report, existing, user) => {
+    if (report.status !== 'Pending Review' && !hasPermission(user, 'documents.verify')) {
+      throw new HttpError(
+        403,
+        'FORBIDDEN',
+        'You do not have the documents.verify permission.'
+      );
+    }
+    const stamped = {
+      ...report,
+      createdBy: existing.createdBy,
+      createdByUserId: existing.createdByUserId,
+      createdAt: existing.createdAt,
+      decision: report.decision
+        ? {
+            outcome: report.decision.outcome,
+            by: user.name,
+            byUserId: user.id,
+            at: nowStamp(),
+            note: report.decision.note
+          }
+        : undefined
+    };
+    await prisma().documentVerification.update({
+      where: { id: report.id },
+      data: toDocumentVerificationData(stamped)
+    });
+    return stamped;
+  }
+};
+
 const undertakingSpec: SaveSpec<Undertaking> = {
   table: 'undertakings',
   label: 'Undertaking',
@@ -453,6 +573,8 @@ dataRouter.post('/compliance', saveHandler(complianceSpec));
 dataRouter.put('/compliance/:id', saveHandler(complianceSpec));
 dataRouter.post('/documents', saveHandler(documentSpec));
 dataRouter.put('/documents/:id', saveHandler(documentSpec));
+dataRouter.post('/document-verifications', saveHandler(documentVerificationSpec));
+dataRouter.put('/document-verifications/:id', saveHandler(documentVerificationSpec));
 dataRouter.post('/undertakings', saveHandler(undertakingSpec));
 dataRouter.put('/undertakings/:id', saveHandler(undertakingSpec));
 dataRouter.post('/notifications', saveHandler(notificationSpec));
@@ -474,6 +596,7 @@ dataRouter.get(
       visitRows,
       complianceRows,
       documentRows,
+      verificationRows,
       notificationRows,
       undertakingRows,
       alertRows,
@@ -488,6 +611,8 @@ dataRouter.get(
       db.eVCVisit.findMany({ orderBy: { date: 'asc' } }),
       db.complianceRecord.findMany({ orderBy: { dueDate: 'asc' } }),
       db.documentItem.findMany(),
+      // Advisory reports are optional: a pending migration must not break the rest of the snapshot.
+      db.documentVerification.findMany({ orderBy: { createdAt: 'desc' } }).catch(() => []),
       db.notificationItem.findMany({ orderBy: { timestamp: 'desc' } }),
       db.undertaking.findMany(),
       db.systemAlert.findMany(),
@@ -525,6 +650,10 @@ dataRouter.get(
       evcVisits: filterEVCVisitsForUser(visitRows.map(toEVCVisit), user),
       complianceRecords: filterComplianceForUser(complianceRows.map(toComplianceRecord), user),
       documents: filterDocumentsForUser(documentRows.map(toDocumentItem), user),
+      documentVerifications: filterDocumentVerificationsForUser(
+        verificationRows.map(toDocumentVerification),
+        user
+      ),
       notifications: filterNotificationsForUser(notificationRows.map(toNotification), user),
       undertakings: filterUndertakingsForUser(undertakingRows.map(toUndertaking), user),
       alerts: filterAlertsForUser(alertRows.map(toSystemAlert), user),
@@ -632,6 +761,7 @@ dataRouter.post(
       'evcVisits',
       'complianceRecords',
       'documents',
+      'documentVerifications',
       'undertakings',
       'notifications',
       'alerts',

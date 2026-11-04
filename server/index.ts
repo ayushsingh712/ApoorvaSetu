@@ -5,6 +5,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { aiService } from './aiService.ts';
+import { MAX_VERIFY_BODY_BYTES, verifyDocument } from './documentVerifier.ts';
 import {
   MAX_BODY_BYTES,
   bodyTooLarge,
@@ -42,6 +43,24 @@ app.use(
     credentials: true
   })
 );
+// Scoped large-body parser for PDF uploads; registered before the global JSON limit.
+app.post(
+  '/api/documents/verify',
+  express.json({ limit: `${Math.ceil(MAX_VERIFY_BODY_BYTES / (1024 * 1024))}mb` }),
+  async (req, res) => {
+    try {
+      const result = await verifyDocument(req.body, req);
+      res.status(result.status).json(result.payload);
+    } catch (error) {
+      console.error('Document verification error:', error);
+      res.status(500).json({
+        error: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while verifying the document.'
+      });
+    }
+  }
+);
+
 app.use(express.json({ limit: `${Math.floor(MAX_BODY_BYTES / 1024)}kb` }));
 
 function rejectedOrigin(origin: unknown): boolean {

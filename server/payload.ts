@@ -4,6 +4,7 @@ import type {
   ApplicationStatus,
   ComplianceRecord,
   DocumentItem,
+  DocumentVerificationReport,
   EscalationItem,
   EVCVisit,
   NotificationItem,
@@ -15,6 +16,7 @@ import type {
 } from '../src/types/index.ts';
 import { HttpError } from './http.ts';
 import { optionalString, requireString } from './validate.ts';
+import { isRecord, requireObject } from './validate.ts';
 import type { TransitionAction } from '../src/workflow/types.ts';
 
 type Body = Record<string, unknown>;
@@ -425,5 +427,85 @@ export function parseTransition(body: Body): TransitionDraft {
     note: optionalString(body.note, 'note', 2000),
     expectedVersion: optionalNumber(body, 'expectedVersion', 1, 1_000_000),
     overrideUndertaking: optionalBoolean(body, 'overrideUndertaking')
+  };
+}
+
+const VERIFICATION_METHODS = ['text', 'ocr', 'hybrid'] as const;
+const VERIFICATION_STATUSES = ['Pending Review', 'Accepted', 'Rejected'] as const;
+
+export function parseDocumentVerificationReport(body: Body): DocumentVerificationReport {
+  const extraction = requireObject(body.extraction, 'extraction');
+  const method = oneOf(extraction, 'method', VERIFICATION_METHODS, false);
+  const fields = requireObject(extraction.fields, 'extraction.fields');
+  const pageCount = Number(extraction.pageCount);
+  if (!Number.isInteger(pageCount) || pageCount < 0 || pageCount > 500) {
+    throw new HttpError(400, 'INVALID_BODY', 'extraction.pageCount must be a whole number up to 500.');
+  }
+  const fileSize = Number(body.fileSize);
+  if (!Number.isFinite(fileSize) || fileSize < 0 || fileSize > 50 * 1024 * 1024) {
+    throw new HttpError(400, 'INVALID_BODY', 'fileSize is outside the accepted range.');
+  }
+
+  const checklist = Array.isArray(body.checklist) ? (body.checklist as DocumentVerificationReport['checklist']) : [];
+  const issues = Array.isArray(body.issues) ? (body.issues as DocumentVerificationReport['issues']) : [];
+  if (checklist.length > 100 || issues.length > 100) {
+    throw new HttpError(400, 'INVALID_BODY', 'Verification findings exceed the accepted limit.');
+  }
+
+  const decisionRaw = isRecord(body.decision) ? body.decision : undefined;
+  const decision =
+    decisionRaw && (decisionRaw.outcome === 'Accepted' || decisionRaw.outcome === 'Rejected')
+      ? {
+          outcome: decisionRaw.outcome as 'Accepted' | 'Rejected',
+          by: requireString(decisionRaw.by, 'decision.by', { max: 200 }),
+          byUserId: requireString(decisionRaw.byUserId, 'decision.byUserId', { max: 200 }),
+          at: requireString(decisionRaw.at, 'decision.at', { max: 100 }),
+          note: optionalString(decisionRaw.note, 'decision.note', 2000) ?? ''
+        }
+      : undefined;
+
+  const summaryRaw = isRecord(body.aiSummary) ? body.aiSummary : undefined;
+  const aiSummary =
+    summaryRaw && typeof summaryRaw.text === 'string'
+      ? {
+          text: summaryRaw.text.slice(0, 2000),
+          provider: summaryRaw.provider === 'gemini' ? ('gemini' as const) : ('deterministic' as const),
+          generatedAt:
+            typeof summaryRaw.generatedAt === 'string' ? summaryRaw.generatedAt.slice(0, 100) : ''
+        }
+      : undefined;
+
+  return {
+    id: requireString(body.id, 'id', { max: 200 }),
+    applicationId: requireString(body.applicationId, 'applicationId', { max: 200 }),
+    documentId: optionalString(body.documentId, 'documentId', 200),
+    instituteId: requireString(body.instituteId, 'instituteId', { max: 200 }),
+    instituteName: requireString(body.instituteName, 'instituteName'),
+    region: requireRegion(body),
+    fileName: requireString(body.fileName, 'fileName', { max: 500 }),
+    fileType: requireString(body.fileType, 'fileType', { max: 100 }),
+    fileSize,
+    fileHash: requireString(body.fileHash, 'fileHash', { max: 128 }),
+    storagePath: optionalString(body.storagePath, 'storagePath', 500),
+    documentTypeCode: requireString(body.documentTypeCode, 'documentTypeCode', { max: 100 }),
+    extraction: {
+      method,
+      pageCount,
+      textPreview:
+        typeof extraction.textPreview === 'string' ? extraction.textPreview.slice(0, 4000) : '',
+      fields: fields as unknown as DocumentVerificationReport['extraction']['fields'],
+      warnings: Array.isArray(extraction.warnings)
+        ? extraction.warnings.filter((warning): warning is string => typeof warning === 'string').slice(0, 20)
+        : []
+    },
+    checklist,
+    issues,
+    aiSummary,
+    disclaimer: requireString(body.disclaimer, 'disclaimer', { max: 2000 }),
+    status: oneOf(body, 'status', VERIFICATION_STATUSES, false),
+    decision,
+    createdAt: requireString(body.createdAt, 'createdAt', { max: 100 }),
+    createdBy: requireString(body.createdBy, 'createdBy', { max: 200 }),
+    createdByUserId: requireString(body.createdByUserId, 'createdByUserId', { max: 200 })
   };
 }

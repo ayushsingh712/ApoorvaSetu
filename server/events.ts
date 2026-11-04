@@ -5,6 +5,7 @@ export type TableName =
   | 'evcVisits'
   | 'complianceRecords'
   | 'documents'
+  | 'documentVerifications'
   | 'undertakings'
   | 'notifications'
   | 'alerts'

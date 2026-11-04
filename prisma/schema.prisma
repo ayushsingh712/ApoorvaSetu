@@ -373,3 +373,33 @@ model FileObject {
   @@index([documentId])
   @@map("file_objects")
 }
+
+model DocumentVerification {
+  id               String   @id
+  applicationId    String
+  documentId       String?
+  instituteId      String
+  instituteName    String
+  region           String
+  documentTypeCode String
+  fileName         String
+  fileType         String
+  fileSize         Int
+  fileHash         String
+  storagePath      String?
+  extractionMethod String
+  report           Json
+  status           String   @default("Pending Review")
+  createdBy        String
+  createdByUserId  String
+  createdAt        String
+  reviewedBy       String?
+  reviewedByName   String?
+  reviewedAt       String?
+
+  @@index([applicationId])
+  @@index([instituteId])
+  @@index([region])
+  @@index([status])
+  @@map("document_verifications")
+}

@@ -7,6 +7,7 @@ import type {
   EVCVisit,
   ComplianceRecord,
   DocumentItem,
+  DocumentVerificationReport,
   NotificationItem,
   SystemAlert,
   Undertaking
@@ -314,6 +315,28 @@ export function filterDocumentsForUser(
     return documents.filter((d) =>
       !user.region || d.region.toLowerCase() === user.region.toLowerCase()
     );
+  }
+  return [];
+}
+
+/**
+ * Strict data scoping for AI verification reports. Mirrors document scoping.
+ */
+export function filterDocumentVerificationsForUser(
+  reports: DocumentVerificationReport[],
+  user: User | null | undefined
+): DocumentVerificationReport[] {
+  if (!user) return [];
+  if (user.role === 'SUPER_ADMIN' || user.role === 'AICTE_ADMIN') {
+    return reports;
+  }
+  if (user.role === 'REGIONAL_OFFICER') {
+    if (!user.region) return [];
+    return reports.filter((report) => report.region.toLowerCase() === user.region!.toLowerCase());
+  }
+  if (user.role === 'INSTITUTION_ADMIN') {
+    if (!user.instituteId) return [];
+    return reports.filter((report) => report.instituteId === user.instituteId);
   }
   return [];
 }

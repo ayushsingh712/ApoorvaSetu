@@ -22,6 +22,7 @@ import {
   AlertCircle,
   ClipboardCheck,
   UploadCloud,
+  FileSearch,
   UserCircle,
   FilePlus2,
   Compass,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
-import { filterAlertsForUser } from '../../services/rbacService';
+import { filterAlertsForUser, filterDocumentVerificationsForUser } from '../../services/rbacService';
 import { Avatar, IconButton } from '../ui';
 import { cn } from '../../utils/cn';
 import type { UserRole } from '../../types';
@@ -55,11 +56,14 @@ interface NavGroup {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notifications, alerts } = useApp();
+  const { notifications, alerts, documentVerifications } = useApp();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const openAlertCount = filterAlertsForUser(alerts, user).filter(
     (alert) => alert.status !== 'Resolved'
+  ).length;
+  const pendingVerificationCount = filterDocumentVerificationsForUser(documentVerifications, user).filter(
+    (report) => report.status === 'Pending Review'
   ).length;
 
   const getNavGroups = (): NavGroup[] => {
@@ -81,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             items: [
               { name: 'Pendency & workload', path: '/pendency', icon: TrendingUp },
               { name: 'Reports', path: '/reports', icon: FileBarChart },
+              { name: 'AI document verification', path: '/documents/verification', icon: FileSearch, badge: pendingVerificationCount },
               { name: 'Alert center', path: '/alerts', icon: BellRing, badge: openAlertCount },
               { name: 'Notifications', path: '/notifications', icon: Bell, badge: unreadCount }
             ]
@@ -112,7 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               { name: 'EVC scheduling', path: '/evc-scheduling', icon: CalendarDays },
               { name: 'EVC queue', path: '/evc/queue', icon: ClipboardList },
               { name: 'Compliance', path: '/compliance', icon: ShieldCheck },
-              { name: 'Documents', path: '/documents', icon: FolderArchive }
+              { name: 'Documents', path: '/documents', icon: FolderArchive },
+              { name: 'AI document verification', path: '/documents/verification', icon: FileSearch, badge: pendingVerificationCount }
             ]
           },
           {
@@ -134,6 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               { name: 'Regional applications', path: '/applications', icon: Clock3 },
               { name: 'Institutions', path: '/institutes', icon: Building2 },
               { name: 'Document verification', path: '/documents', icon: FileCheck },
+              { name: 'AI document verification', path: '/documents/verification', icon: FileSearch, badge: pendingVerificationCount },
               { name: 'EVC coordination', path: '/evc-scheduling', icon: CalendarDays },
               { name: 'EVC queue', path: '/evc/queue', icon: ClipboardList }
             ]
@@ -195,6 +202,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             title: 'Compliance',
             items: [
               { name: 'Documents', path: '/documents', icon: FolderArchive },
+              { name: 'AI document verification', path: '/documents/verification', icon: FileSearch, badge: pendingVerificationCount },
               { name: 'Undertakings', path: '/compliance', icon: ShieldCheck },
               { name: 'EVC visits', path: '/evc-scheduling', icon: CalendarDays }
             ]

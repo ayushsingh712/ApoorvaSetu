@@ -2,6 +2,7 @@ import type {
   Application as ApplicationRow,
   ComplianceRecord as ComplianceRow,
   DocumentItem as DocumentRow,
+  DocumentVerification as DocumentVerificationRow,
   EVCVisit as EVCVisitRow,
   Institute as InstituteRow,
   Undertaking as UndertakingRow
@@ -14,6 +15,7 @@ import type {
   ComplianceRecord,
   Deficiency,
   DocumentItem,
+  DocumentVerificationReport,
   EVCVisit,
   EVCVisitChecklistItem,
   Institute,
@@ -258,6 +260,42 @@ export function toDocumentItemData(document: DocumentItem): Prisma.DocumentItemU
     verifiedBy: document.verifiedBy ?? null,
     storagePath: document.storagePath ?? null,
     expiryTier: document.expiryTier ?? null
+  };
+}
+
+export function toDocumentVerification(row: DocumentVerificationRow): DocumentVerificationReport {
+  const report = asObject<DocumentVerificationReport>(row.report);
+  return {
+    ...(report as DocumentVerificationReport),
+    status: row.status as DocumentVerificationReport['status']
+  };
+}
+
+export function toDocumentVerificationData(
+  report: DocumentVerificationReport
+): Prisma.DocumentVerificationUncheckedCreateInput {
+  return {
+    id: report.id,
+    applicationId: report.applicationId,
+    documentId: report.documentId ?? null,
+    instituteId: report.instituteId,
+    instituteName: report.instituteName,
+    region: report.region,
+    documentTypeCode: report.documentTypeCode,
+    fileName: report.fileName,
+    fileType: report.fileType,
+    fileSize: report.fileSize,
+    fileHash: report.fileHash,
+    storagePath: report.storagePath ?? null,
+    extractionMethod: report.extraction.method,
+    report: jsonRequired(report),
+    status: report.status,
+    createdBy: report.createdBy,
+    createdByUserId: report.createdByUserId,
+    createdAt: report.createdAt,
+    reviewedBy: report.decision?.byUserId ?? null,
+    reviewedByName: report.decision?.by ?? null,
+    reviewedAt: report.decision?.at ?? null
   };
 }
 

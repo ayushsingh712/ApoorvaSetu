@@ -4,6 +4,7 @@ import type {
   ComplianceRecord,
   DataMode,
   DocumentItem,
+  DocumentVerificationReport,
   EscalationItem,
   EVCVisit,
   Institute,
@@ -27,6 +28,7 @@ export interface RepositorySnapshot {
   evcVisits?: EVCVisit[];
   complianceRecords?: ComplianceRecord[];
   documents?: DocumentItem[];
+  documentVerifications?: DocumentVerificationReport[];
   notifications?: NotificationItem[];
   undertakings?: Undertaking[];
   alerts?: SystemAlert[];
@@ -67,6 +69,7 @@ export interface Repository {
   upsertEVCVisit(visit: EVCVisit): Promise<boolean>;
   upsertComplianceRecord(record: ComplianceRecord): Promise<boolean>;
   upsertDocument(document: DocumentItem): Promise<boolean>;
+  upsertDocumentVerification(report: DocumentVerificationReport): Promise<boolean>;
   upsertNotification(notification: NotificationItem): Promise<boolean>;
   upsertUndertaking(undertaking: Undertaking): Promise<boolean>;
   upsertAlert(alert: SystemAlert): Promise<boolean>;

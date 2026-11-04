@@ -3,6 +3,7 @@ import type {
   AuditLog,
   ComplianceRecord,
   DocumentItem,
+  DocumentVerificationReport,
   EscalationItem,
   EVCVisit,
   NotificationItem,
@@ -24,6 +25,7 @@ type EntityKey =
   | 'evcVisits'
   | 'complianceRecords'
   | 'documents'
+  | 'documentVerifications'
   | 'notifications'
   | 'undertakings'
   | 'alerts'
@@ -34,6 +36,7 @@ const ENDPOINTS: Record<EntityKey, string> = {
   evcVisits: '/evc-visits',
   complianceRecords: '/compliance',
   documents: '/documents',
+  documentVerifications: '/document-verifications',
   notifications: '/notifications',
   undertakings: '/undertakings',
   alerts: '/alerts',
@@ -51,6 +54,7 @@ const SNAPSHOT_KEYS: Record<EntityKey, keyof RepositorySnapshot> = {
   evcVisits: 'evcVisits',
   complianceRecords: 'complianceRecords',
   documents: 'documents',
+  documentVerifications: 'documentVerifications',
   notifications: 'notifications',
   undertakings: 'undertakings',
   alerts: 'alerts',
@@ -111,6 +115,7 @@ class PostgresRepository implements Repository {
     evcVisits: new Set(),
     complianceRecords: new Set(),
     documents: new Set(),
+    documentVerifications: new Set(),
     notifications: new Set(),
     undertakings: new Set(),
     alerts: new Set(),
@@ -207,6 +212,10 @@ class PostgresRepository implements Repository {
 
   upsertDocument(document: DocumentItem): Promise<boolean> {
     return this.persist('documents', document);
+  }
+
+  upsertDocumentVerification(report: DocumentVerificationReport): Promise<boolean> {
+    return this.persist('documentVerifications', report);
   }
 
   upsertNotification(notification: NotificationItem): Promise<boolean> {
@@ -322,6 +331,7 @@ class PostgresRepository implements Repository {
         evcVisits: new Set(),
         complianceRecords: new Set(),
         documents: new Set(),
+        documentVerifications: new Set(),
         notifications: new Set(),
         undertakings: new Set(),
         alerts: new Set(),

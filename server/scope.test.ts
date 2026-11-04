@@ -77,6 +77,18 @@ describe('regulated field guards', () => {
     }
   });
 
+  it('treats differently ordered JSON objects as unchanged', () => {
+    const current = { extraction: { fields: { code: 'X', name: 'Y' }, method: 'text' } };
+    const reordered = { extraction: { method: 'text', fields: { name: 'Y', code: 'X' } } };
+    expect(() => assertUnchanged(reordered, current, ['extraction'])).not.toThrow();
+  });
+
+  it('still rejects semantic changes inside JSON', () => {
+    const current = { extraction: { fields: { code: 'X' } } };
+    expect(() => assertUnchanged({ extraction: { fields: { code: 'Z' } } }, current, ['extraction']))
+      .toThrowError(/'extraction' can only change/);
+  });
+
   it('removes fields before they reach persistence', () => {
     const body = { id: 'A-1', verifiedBy: 'Forged', status: 'Pending' };
     const cleaned = stripFields(body, ['verifiedBy']);
